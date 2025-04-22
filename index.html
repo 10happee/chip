@@ -73,8 +73,8 @@
         for (let col = 0; col < steps; col++) {
           const cell = document.createElement('div');
           cell.classList.add('grid-cell');
-          cell.style.top = `${row * cellSize}px`;
           cell.style.left = `${col * cellSize}px`;
+          cell.style.top = `${(pitches - row - 1) * cellSize}px`; // Flip pitch vertically
           cell.style.width = `${cellSize}px`;
           cell.style.height = `${cellSize}px`;
           cell.dataset.row = row;
@@ -90,22 +90,28 @@
       if (existing) {
         notes.splice(notes.indexOf(existing), 1);
       } else {
+        // Avoid overlapping at creation
+        if (notes.some(n => n.pitch === pitch && n.startStep === step)) return;
         notes.push({ pitch, startStep: step, duration: 1 });
       }
       renderNotes();
     }
 
     function renderNotes() {
-      // Remove all existing note divs
       [...roll.querySelectorAll('.note')].forEach(el => el.remove());
 
       for (let note of notes) {
         const noteDiv = document.createElement('div');
         noteDiv.classList.add('note');
-        noteDiv.style.top = `${note.pitch * cellSize}px`;
         noteDiv.style.left = `${note.startStep * cellSize}px`;
+        noteDiv.style.top = `${(pitches - note.pitch - 1) * cellSize}px`;
         noteDiv.style.width = `${note.duration * cellSize}px`;
         noteDiv.style.height = `${cellSize}px`;
+
+        noteDiv.onclick = () => {
+          notes.splice(notes.indexOf(note), 1);
+          renderNotes();
+        };
 
         const resizeHandle = document.createElement('div');
         resizeHandle.classList.add('note-resize');
@@ -118,13 +124,30 @@
           e.stopPropagation();
           isDragging = true;
           startX = e.clientX;
+
           document.onmousemove = e2 => {
             if (!isDragging) return;
             const dx = Math.floor((e2.clientX - startX) / cellSize);
-            note.duration = Math.max(1, note.duration + dx);
-            renderNotes();
-            startX = e2.clientX;
+            if (dx !== 0) {
+              const newDuration = Math.max(1, note.duration + dx);
+              const endStep = note.startStep + newDuration;
+              const overlaps = notes.some(n =>
+                n !== note &&
+                n.pitch === note.pitch &&
+                (
+                  (note.startStep >= n.startStep && note.startStep < n.startStep + n.duration) ||
+                  (endStep > n.startStep && endStep <= n.startStep + n.duration) ||
+                  (note.startStep <= n.startStep && endStep >= n.startStep + n.duration)
+                )
+              );
+              if (!overlaps) {
+                note.duration = newDuration;
+                renderNotes();
+              }
+              startX = e2.clientX;
+            }
           };
+
           document.onmouseup = () => {
             isDragging = false;
             document.onmousemove = null;
@@ -170,7 +193,6 @@
             playNote(note.pitch, instrumentSelect.value);
           }
         }
-
         currentStep = (currentStep + 1) % steps;
       }, interval);
     }
