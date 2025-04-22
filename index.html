@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chiptune Maker</title>
+  <script defer src="script.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white p-6">
+  <h1 class="text-2xl mb-4 font-bold">Chiptune Song Maker</h1>
+
+  <div class="mb-4">
+    <label for="instrument" class="mr-2">Instrument:</label>
+    <select id="instrument" class="text-black">
+      <option value="square">Square</option>
+      <option value="triangle">Triangle</option>
+      <option value="sawtooth">Sawtooth</option>
+      <option value="custom">Custom</option>
+    </select>
+  </div>
+
+  <div class="grid grid-cols-16 gap-1 mb-4" id="grid"></div>
+
+  <div class="flex items-center gap-4">
+    <button id="play" class="bg-green-500 px-4 py-2 rounded hover:bg-green-600">Play</button>
+    <button id="stop" class="bg-red-500 px-4 py-2 rounded hover:bg-red-600">Stop</button>
+    <label for="tempo">Tempo: <input id="tempo" type="number" value="120" class="w-20 text-black"></label>
+  </div>
+</body>
+</html>
