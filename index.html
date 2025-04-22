@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Chiptune Maker</title>
-  <script defer src="script.js"></script>
+  <title>Chiptune Piano Roll</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <style>
     .note {
@@ -12,13 +11,19 @@
       position: absolute;
       height: 100%;
       cursor: ew-resize;
+      z-index: 10;
     }
     .note-resize {
       width: 6px;
-      background-color: #fcd34d;
+      background-color: #fde68a;
       float: right;
       height: 100%;
       cursor: ew-resize;
+    }
+    .grid-cell {
+      border: 1px solid #333;
+      position: absolute;
+      box-sizing: border-box;
     }
   </style>
 </head>
@@ -44,5 +49,147 @@
     <button id="stop" class="bg-red-500 px-4 py-2 rounded hover:bg-red-600">Stop</button>
     <label for="tempo">Tempo: <input id="tempo" type="number" value="120" class="w-20 text-black"></label>
   </div>
+
+  <script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const roll = document.getElementById('piano-roll');
+    const tempoInput = document.getElementById('tempo');
+    const instrumentSelect = document.getElementById('instrument');
+    const playBtn = document.getElementById('play');
+    const stopBtn = document.getElementById('stop');
+
+    const steps = 32;
+    const pitches = 16;
+    const cellSize = 32;
+
+    let isPlaying = false;
+    let intervalId = null;
+    let currentStep = 0;
+
+    const notes = []; // { pitch, startStep, duration }
+
+    function createRoll() {
+      for (let row = 0; row < pitches; row++) {
+        for (let col = 0; col < steps; col++) {
+          const cell = document.createElement('div');
+          cell.classList.add('grid-cell');
+          cell.style.top = `${row * cellSize}px`;
+          cell.style.left = `${col * cellSize}px`;
+          cell.style.width = `${cellSize}px`;
+          cell.style.height = `${cellSize}px`;
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+          cell.onclick = () => toggleNote(row, col);
+          roll.appendChild(cell);
+        }
+      }
+    }
+
+    function toggleNote(pitch, step) {
+      const existing = notes.find(n => n.pitch === pitch && step >= n.startStep && step < n.startStep + n.duration);
+      if (existing) {
+        notes.splice(notes.indexOf(existing), 1);
+      } else {
+        notes.push({ pitch, startStep: step, duration: 1 });
+      }
+      renderNotes();
+    }
+
+    function renderNotes() {
+      // Remove all existing note divs
+      [...roll.querySelectorAll('.note')].forEach(el => el.remove());
+
+      for (let note of notes) {
+        const noteDiv = document.createElement('div');
+        noteDiv.classList.add('note');
+        noteDiv.style.top = `${note.pitch * cellSize}px`;
+        noteDiv.style.left = `${note.startStep * cellSize}px`;
+        noteDiv.style.width = `${note.duration * cellSize}px`;
+        noteDiv.style.height = `${cellSize}px`;
+
+        const resizeHandle = document.createElement('div');
+        resizeHandle.classList.add('note-resize');
+        noteDiv.appendChild(resizeHandle);
+
+        let isDragging = false;
+        let startX = 0;
+
+        resizeHandle.onmousedown = e => {
+          e.stopPropagation();
+          isDragging = true;
+          startX = e.clientX;
+          document.onmousemove = e2 => {
+            if (!isDragging) return;
+            const dx = Math.floor((e2.clientX - startX) / cellSize);
+            note.duration = Math.max(1, note.duration + dx);
+            renderNotes();
+            startX = e2.clientX;
+          };
+          document.onmouseup = () => {
+            isDragging = false;
+            document.onmousemove = null;
+            document.onmouseup = null;
+          };
+        };
+
+        roll.appendChild(noteDiv);
+      }
+    }
+
+    function playNote(pitch, waveType) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      if (waveType === 'custom') {
+        const real = new Float32Array([0, 1, 0.5]);
+        const imag = new Float32Array([0, 0, 0.5]);
+        osc.setPeriodicWave(audioCtx.createPeriodicWave(real, imag));
+      } else {
+        osc.type = waveType;
+      }
+
+      const frequency = 440 * Math.pow(2, (pitch - 8) / 12);
+      osc.frequency.value = frequency;
+
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.2);
+    }
+
+    function playSequence() {
+      const bpm = parseInt(tempoInput.value);
+      const interval = (60 / bpm) * 1000 / 4;
+
+      intervalId = setInterval(() => {
+        for (let note of notes) {
+          if (note.startStep === currentStep) {
+            playNote(note.pitch, instrumentSelect.value);
+          }
+        }
+
+        currentStep = (currentStep + 1) % steps;
+      }, interval);
+    }
+
+    playBtn.onclick = () => {
+      if (!isPlaying) {
+        isPlaying = true;
+        audioCtx.resume();
+        playSequence();
+      }
+    };
+
+    stopBtn.onclick = () => {
+      isPlaying = false;
+      clearInterval(intervalId);
+      currentStep = 0;
+    };
+
+    createRoll();
+  </script>
 </body>
 </html>
